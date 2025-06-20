@@ -25,11 +25,17 @@ function MovieDetailsModal({ group, onClose, onPlay, onLibraryRefresh }) {
     // Fetch the full details using the representative movie's ID
     api.get(`/library/movies/${group.rep.id}/details`)
       .then(res => {
-        setDetails(res.data);
+        const movieData = res.data;
+        // Add logging to inspect the data for debugging codec issues
+        console.log('Movie Details Fetched:', movieData);
+        console.log('Video Codec:', movieData.video_codec);
+        console.log('Audio Codec:', movieData.audio_codec);
+        setDetails(movieData);
       })
       .catch(err => {
         console.error("Failed to fetch movie details:", err);
-        // Fallback to basic group info if the details fetch fails
+        // Log the error and the movie ID for debugging
+        console.log('Error fetching movie details for ID:', group.rep.id, 'Error:', err);
         setDetails({ ...group.rep, overview: "Could not load full details." });
       })
       .finally(() => {
