@@ -1,8 +1,12 @@
 // src/components/SubtitlePicker.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { getLocalSubtitles, searchRemoteSubtitles, downloadSubtitle } from '../api/api';
+// DELETED: import { getLocalSubtitles, searchRemoteSubtitles, downloadSubtitle } from '../api/api';
+import { useAuth } from '../context/AuthContext'; // NEW: Import useAuth to get mediaServerApi
 
 function SubtitlePicker({ movie, itemType, onSelect, onClose, activeSubId }) {
+  // NEW: Get the dynamic mediaServerApi instance from the context
+  const { mediaServerApi } = useAuth();
+
   const [localSubs, setLocalSubs] = useState([]);
   const [remoteSubs, setRemoteSubs] = useState([]);
   const [status, setStatus] = useState('idle'); // idle | loading | searching | downloading
@@ -12,11 +16,14 @@ function SubtitlePicker({ movie, itemType, onSelect, onClose, activeSubId }) {
 
   // Fetch already-downloaded subtitles on mount
   const fetchLocalSubs = useCallback(async () => {
-    if (!movie) return;
+    // NEW: Add check for mediaServerApi
+    if (!movie || !mediaServerApi) return; 
+
     setStatus('loading');
     setError('');
     try {
-      const { data } = await getLocalSubtitles(movie.id, itemType);
+      // Use mediaServerApi for the call
+      const { data } = await mediaServerApi.get(`/subtitles/${movie.id}?item_type=${itemType}`);
       setLocalSubs(data || []);
     } catch (err) {
       setError('Could not fetch local subtitles.');
@@ -24,18 +31,25 @@ function SubtitlePicker({ movie, itemType, onSelect, onClose, activeSubId }) {
     } finally {
       setStatus('idle');
     }
-  }, [movie, itemType]);
+  }, [movie, itemType, mediaServerApi]); // NEW: Add mediaServerApi to dependency array
 
   useEffect(() => {
     fetchLocalSubs();
   }, [fetchLocalSubs]);
 
   const handleSearch = async () => {
+    // NEW: Check for mediaServerApi
+    if (!mediaServerApi) {
+      setError('Media server API not available.');
+      return;
+    }
+
     setStatus('searching');
     setError('');
     setRemoteSubs([]);
     try {
-      const { data } = await searchRemoteSubtitles(movie.id, itemType, searchLang);
+      // Use mediaServerApi for the call
+      const { data } = await mediaServerApi.get(`/subtitles/${movie.id}/search?item_type=${itemType}&lang=${searchLang}`);
       if (data && data.length > 0) {
         setRemoteSubs(data);
       } else {
@@ -50,6 +64,12 @@ function SubtitlePicker({ movie, itemType, onSelect, onClose, activeSubId }) {
   };
 
   const handleDownload = async (sub) => {
+    // NEW: Check for mediaServerApi
+    if (!mediaServerApi) {
+      setError('Media server API not available.');
+      return;
+    }
+    
     const downloadingId = sub.id;
     setStatus(`downloading-${downloadingId}`);
     setError('');
@@ -59,11 +79,12 @@ function SubtitlePicker({ movie, itemType, onSelect, onClose, activeSubId }) {
         file_name: sub.attributes.file_name,
         lang: sub.attributes.language,
       };
-      const { data } = await downloadSubtitle(movie.id, itemType, payload);
-            
+      // Use mediaServerApi for the call
+      const { data } = await mediaServerApi.post(`/subtitles/${movie.id}/download`, { ...payload, item_type: itemType });
+                  
       // Refresh local subs to show the newly downloaded one
       await fetchLocalSubs();
-            
+                  
       // Auto-select the newly downloaded subtitle
       onSelect({ id: data.id, url: data.url, lang: payload.lang });
       onClose();
@@ -73,12 +94,12 @@ function SubtitlePicker({ movie, itemType, onSelect, onClose, activeSubId }) {
       setStatus('idle');
     }
   };
-    
+      
   const handleSelectLocal = (sub) => {
     onSelect({ id: sub.id, url: sub.url, lang: sub.lang });
     onClose();
   };
-    
+      
   const handleSelectOff = () => {
     onSelect(null);
     onClose();

@@ -1,12 +1,13 @@
 import axios from 'axios';
 
-// Create Axios instance with base URL
-const api = axios.create({
-  baseURL: 'http://localhost:8000',
+// --- 1. Lantern Identity Service API ---
+// This is a static instance for user auth, registration, and server management.
+export const identityApi = axios.create({
+  baseURL: 'http://localhost:8001' //'https://lantern.henosis.us', // No /api suffix as per your plan
 });
 
-// Interceptor to add the auth token to every request
-api.interceptors.request.use(
+// Interceptor to add the auth token to every Identity Service request
+identityApi.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('jwt');
     if (token) {
@@ -16,58 +17,53 @@ api.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
+  }
+);
+
+
+// --- 2. Media Server API Factory ---
+// This function creates a new, configured Axios instance for a specific media server.
+// The instance should be created and managed in a React context.
+export const createMediaServerApi = (serverUrl) => {
+  const mediaApi = axios.create({
+    baseURL: serverUrl,
   });
 
-// Add a response error interceptor for logging API errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response) {
-      console.error(
-        `[API-ERR] ${error.config.method?.toUpperCase()} ${error.config.url} →`,
-        `status ${error.response.status}`,
-        error.response.data
-      );
-    } else {
-      console.error('[API-ERR] Network / CORS problem', error.message);
+  // Interceptor to add the same auth token to every media server request
+  mediaApi.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  });
-
-
-// --- Subtitle API helpers ---
-export const getLocalSubtitles = (mediaId, itemType) =>
-  api.get(`/subtitles/${mediaId}?item_type=${itemType}`);
-
-export const searchRemoteSubtitles = (mediaId, itemType, lang = 'en') =>
-  api.get(`/subtitles/${mediaId}/search?item_type=${itemType}&lang=${lang}`);
-
-export const downloadSubtitle = (mediaId, itemType, payload) =>
-  api.post(`/subtitles/${mediaId}/download`, { ...payload, item_type: itemType });
-
-export const getCurrentSubtitleSelection = (mediaId, itemType) =>
-  api.get(`/subtitles/${mediaId}/current?item_type=${itemType}`);
-
-export const setSubtitleSelection = (mediaId, itemType, subtitleId) =>
-  api.put(`/subtitles/${mediaId}/select?item_type=${itemType}`, { subtitle_id: subtitleId });
-
-
-// --- Unified History API helpers ---
-export const saveProgress = (mediaId, itemType, positionSeconds, durationSeconds) =>
-  api.put(
-    `/history/${mediaId}?item_type=${itemType}`,
-    { position_seconds: positionSeconds, duration_seconds: durationSeconds }
   );
 
-export const getProgress = (mediaId, itemType) =>
-  api.get(`/history/${mediaId}?item_type=${itemType}`);
+  // Add a response error interceptor for logging API errors
+  mediaApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response) {
+        console.error(
+          `[Media-Server-API-ERR] ${error.config.method?.toUpperCase()} ${error.config.url} →`,
+          `status ${error.response.status}`,
+          error.response.data
+        );
+      } else {
+        console.error('[Media-Server-API-ERR] Network / CORS problem', error.message);
+      }
+      return Promise.reject(error);
+    }
+  );
 
-export const clearProgress = (mediaId, itemType) =>
-  api.delete(`/history/${mediaId}?item_type=${itemType}`);
+  return mediaApi;
+};
 
-// Continue watching list (no change needed, endpoint handles both)
-export const getContinue = () => api.get('/history/continue/');
-
-
-// Export the main api instance for general use
-export default api;
+// NOTE: The previous API helper functions (e.g., getLocalSubtitles, saveProgress)
+// have been removed from this file. API calls to a media server should now be made
+// using the dynamic API instance created by `createMediaServerApi` and stored
+// in the AuthContext.

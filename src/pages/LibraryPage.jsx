@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import api, { getContinue } from '../api/api';
+// DELETED: import api, { getContinue } from '../api/api';
+import { useAuth } from '../context/AuthContext'; // NEW: Import useAuth to get mediaServerApi
+
 import Header from '../components/Header';
 import MovieCard from '../components/MovieCard';
 import SeriesCard from '../components/SeriesCard';
@@ -22,14 +24,24 @@ function LibraryPage() {
   const [selectedSeries, setSelectedSeries] = useState(null);
   const [playingItem, setPlayingItem] = useState(null); // Can be a movie or an episode
 
+  // NEW: Get the dynamic mediaServerApi instance from the context
+  const { mediaServerApi } = useAuth();
+
   // --- Data Fetching ---
   const fetchLibraryData = useCallback(async () => {
+    // NEW: Ensure mediaServerApi is available before making calls
+    if (!mediaServerApi) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
+      // Use mediaServerApi for all calls to the media server
       const [moviesRes, seriesRes, continueRes] = await Promise.all([
-        api.get('/library/movies'),
-        api.get('/library/series'),
-        getContinue(),
+        mediaServerApi.get('/library/movies'),
+        mediaServerApi.get('/library/series'),
+        mediaServerApi.get('/history/continue/'), // Use mediaServerApi for getContinue
       ]);
       setMovies(moviesRes.data || []);
       setSeries(seriesRes.data || []);
@@ -39,7 +51,7 @@ function LibraryPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [mediaServerApi]); // NEW: Add mediaServerApi to dependency array
 
   useEffect(() => {
     fetchLibraryData();
@@ -47,9 +59,16 @@ function LibraryPage() {
 
   // --- Event Handlers ---
   const handleScan = async () => {
+    // NEW: Ensure mediaServerApi is available
+    if (!mediaServerApi) {
+      alert("No media server selected or connected.");
+      return;
+    }
+
     setIsScanning(true);
     try {
-      await api.post('/library/scan');
+      // Use mediaServerApi for the scan request
+      await mediaServerApi.post('/library/scan');
       // Poll for completion or just wait a fixed time and refresh
       setTimeout(() => {
         fetchLibraryData();
@@ -100,7 +119,6 @@ function LibraryPage() {
         activeTab={activeTab}
         onNavClick={setActiveTab}
       />
-
       <main id="main-content" className={isLoading ? 'loading' : ''}>
         {/* Modals and Overlays */}
         {playingItem && <PlayerOverlay movie={playingItem} onClose={() => setPlayingItem(null)} />}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import api from '../api/api';
+// DELETED: import api from '../api/api';
 
 // Helper function to format duration
 const fmtDur = (s) => {
@@ -11,22 +11,23 @@ const fmtDur = (s) => {
 };
 
 function MovieDetailsModal({ group, onClose, onPlay, onLibraryRefresh }) {
-  const { isOwner } = useAuth();
+  // Get the dynamic mediaServerApi instance from the context
+  const { isOwner, mediaServerApi } = useAuth(); 
   const [details, setDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
 
   useEffect(() => {
-    if (!group) return;
+    if (!group || !mediaServerApi) return; // <-- Add check for mediaServerApi
+
     setIsLoading(true);
     setDetails(null);
     setShowInfoPanel(false);
 
-    // Fetch the full details using the representative movie's ID
-    api.get(`/library/movies/${group.rep.id}/details`)
+    // Fetch the full details using the dynamic API instance from the context
+    mediaServerApi.get(`/library/movies/${group.rep.id}/details`)
       .then(res => {
         const movieData = res.data;
-        // Add logging to inspect the data for debugging codec issues
         console.log('Movie Details Fetched:', movieData);
         console.log('Video Codec:', movieData.video_codec);
         console.log('Audio Codec:', movieData.audio_codec);
@@ -34,31 +35,33 @@ function MovieDetailsModal({ group, onClose, onPlay, onLibraryRefresh }) {
       })
       .catch(err => {
         console.error("Failed to fetch movie details:", err);
-        // Log the error and the movie ID for debugging
         console.log('Error fetching movie details for ID:', group.rep.id, 'Error:', err);
         setDetails({ ...group.rep, overview: "Could not load full details." });
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [group]);
+  }, [group, mediaServerApi]); // <-- Add mediaServerApi to dependency array
 
   const handleFixMetadata = async (movie) => {
     const query = prompt("Search TMDb for…", movie.title);
     if (!query) return;
+
     try {
-      const searchRes = await api.get(`/tmdb/search?q=${encodeURIComponent(query)}`);
+      // Use mediaServerApi for this call as well
+      const searchRes = await mediaServerApi.get(`/tmdb/search?q=${encodeURIComponent(query)}`);
       const list = searchRes.data;
       if (!list.length) return alert("No TMDb results found.");
       
       const choices = list.slice(0, 5).map((x, i) => `${i + 1}) ${x.title} (${x.release_date || 'n/a'})`).join('\n');
       const pickStr = prompt(`Select match:\n${choices}\n0) Cancel`, "1");
       const pick = parseInt(pickStr, 10);
-
       if (!pick || pick < 1 || pick > list.length) return;
       const tmdb_id = list[pick - 1].id;
       
-      await api.post(`/library/movies/${movie.id}/set_tmdb`, { tmdb_id });
+      // And here too
+      await mediaServerApi.post(`/library/movies/${movie.id}/set_tmdb`, { tmdb_id });
+
       alert("Metadata updated! Refreshing library.");
       onLibraryRefresh();
       onClose();
@@ -80,7 +83,7 @@ function MovieDetailsModal({ group, onClose, onPlay, onLibraryRefresh }) {
   const posterArt = representative.poster_path
     ? `https://image.tmdb.org/t/p/w500${representative.poster_path}`
     : 'https://via.placeholder.com/500x750.png?text=No+Poster';
-  
+    
   const year = representative.release_date ? `(${representative.release_date.substring(0, 4)})` : '';
   const rating = representative.vote_average ? representative.vote_average.toFixed(1) : 'N/A';
   const genres = representative.genres ? representative.genres.split(', ') : [];

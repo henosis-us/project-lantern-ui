@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header({ onSearchChange, onScan, isScanning, activeTab, onNavClick }) {
   const { logout, isOwner } = useAuth();
+  const navigate = useNavigate();
 
   const handleNavClick = (tab) => {
     if (typeof onNavClick === 'function') {
@@ -10,9 +12,9 @@ function Header({ onSearchChange, onScan, isScanning, activeTab, onNavClick }) {
     } else {
       // Fallback to default navigation based on tab
       if (tab === 'movies') {
-        window.location.pathname = '/';
+        window.location.href = '/';
       } else if (tab === 'tv') {
-        window.location.pathname = '/tv'; // Assuming /tv is the route for TV shows
+        window.location.href = '/tv'; // Assuming /tv is the route for TV shows
       }
     }
   };
@@ -20,7 +22,6 @@ function Header({ onSearchChange, onScan, isScanning, activeTab, onNavClick }) {
   return (
     <div className="header">
       <h1 style={{ cursor: 'pointer' }} onClick={() => (window.location.href = '/')}>Lantern</h1>
-      
       {/* Central Navigation */}
       <nav className="header-nav">
         <button
@@ -36,7 +37,6 @@ function Header({ onSearchChange, onScan, isScanning, activeTab, onNavClick }) {
           TV Shows
         </button>
       </nav>
-
       {/* Search and Controls */}
       <input
         id="search-input"
@@ -49,6 +49,9 @@ function Header({ onSearchChange, onScan, isScanning, activeTab, onNavClick }) {
           <button id="scan-button" onClick={onScan} disabled={isScanning}>
             {isScanning ? 'Scanning…' : 'Scan Library'}
           </button>
+        )}
+        {isOwner && (
+          <button onClick={() => navigate('/settings')}>Settings</button>
         )}
         <button id="logout-btn" onClick={logout}>
           Logout

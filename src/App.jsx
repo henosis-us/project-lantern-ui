@@ -1,46 +1,61 @@
 import React from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router-dom';
 import { useAuth, AuthProvider } from './context/AuthContext';
+
+// Import Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import LibraryPage from './pages/LibraryPage';
-import SeriesPage from './pages/SeriesPage'; // NEW: TV shows page
+import SeriesPage from './pages/SeriesPage';
+import ClaimServerPage from './pages/ClaimServerPage'; // NEW
+import OnboardingPage from './pages/OnboardingPage'; // NEW
+import ServerSelectorPage from './pages/ServerSelectorPage'; // NEW
+import SettingsPage from './pages/SettingsPage'; // NEW: Import the settings page
 
 // A component to protect routes that require authentication
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) {
-    // Redirect them to the /login page, but save the current location they were
-    // trying to go to. This allows us to send them back after they log in.
-    return <Navigate to="/login" replace />;
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+// This component decides what to show authenticated users.
+const AppLayout = () => {
+  const { availableServers, activeServer } = useAuth();
+
+  if (activeServer) {
+    // A server is selected, show the main app content (Library, TV, etc.)
+    return <Outlet />;
   }
-  return children;
+
+  if (availableServers === null) {
+    // Servers are still being fetched
+    return <div className="auth-page"><h2>Loading...</h2></div>;
+  }
+
+  if (availableServers.length > 0) {
+    return <ServerSelectorPage />;
+  }
+
+  return <OnboardingPage />;
 };
 
 const router = createBrowserRouter([
+  // Public auth routes
+  { path: '/login', element: <LoginPage /> },
+  { path: '/register', element: <RegisterPage /> },
+  // Protected routes
   {
     path: '/',
-    element: (
-      <ProtectedRoute>
-        <LibraryPage />
-      </ProtectedRoute>
-    ),
+    element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+    children: [
+      { index: true, element: <LibraryPage /> }, // Main library view
+      { path: 'tv', element: <SeriesPage /> },
+      { path: 'settings', element: <SettingsPage /> }, // NEW: Add settings route
+    ],
   },
   {
-    path: '/tv',
-    element: (
-      <ProtectedRoute>
-        <SeriesPage />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/register',
-    element: <RegisterPage />,
+    path: '/claim',
+    element: <ProtectedRoute><ClaimServerPage /></ProtectedRoute>,
   },
 ]);
 
