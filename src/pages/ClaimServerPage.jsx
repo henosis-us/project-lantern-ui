@@ -3,27 +3,50 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { identityApi } from '../api/api';
+import axios from 'axios'; // Import axios
 
 const ClaimServerPage = () => {
-  // NEW: State for the server URL, pre-filled with a common default
   const [serverUrl, setServerUrl] = useState('http://localhost:8000');
   const [token, setToken] = useState('');
   const [friendlyName, setFriendlyName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false); // For fetching claim info
   const navigate = useNavigate();
   const { refreshServers, selectServer, availableServers } = useAuth();
-
-  // Store the IDs of servers the user has *before* claiming the new one.
-  // This helps us find the newly added server later.
   const [initialServerIds, setInitialServerIds] = useState(new Set());
 
   useEffect(() => {
-    // Populate initialServerIds when availableServers is first loaded
     if (availableServers !== null && initialServerIds.size === 0) {
       setInitialServerIds(new Set(availableServers.map(s => s.server_unique_id)));
     }
-  }, [availableServers, initialServerIds.size]); // Depend on availableServers being non-null
+  }, [availableServers, initialServerIds.size]);
+
+  // NEW: Function to fetch claim info from the server
+  const fetchClaimInfo = async () => {
+    if (!serverUrl) {
+      setError('Please enter the server address first.');
+      return;
+    }
+    setIsFetching(true);
+    setError('');
+    try {
+      // Construct the full URL for the new endpoint
+      const url = `${serverUrl.replace(/\/$/, '')}/server/claim-info`;
+      const response = await axios.get(url);
+      const { claim_token } = response.data;
+      if (claim_token) {
+        setToken(claim_token);
+      } else {
+        setError('Could not fetch claim token. The server might already be claimed.');
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.detail || 'Failed to connect to the server. Check the address and ensure it is running.';
+      setError(errorMsg);
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,25 +93,28 @@ const ClaimServerPage = () => {
       <form className="auth-form" onSubmit={handleSubmit}>
         <h2>Claim Your Server</h2>
         <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '20px' }}>
-          Enter the details provided by your server's console output.
+          Enter the address of your new server to automatically fetch the claim token.
         </p>
         {error && <p className="error">{error}</p>}
 
-        {/* NEW: Input field for the Server URL */}
-        <input
-          type="text"
-          placeholder="Server URL (e.g., http://localhost:8000)"
-          value={serverUrl}
-          onChange={(e) => setServerUrl(e.target.value)}
-          required
-        />
+        <div className="server-url-input">
+          <input
+            type="text"
+            placeholder="Server Address (e.g., http://192.168.1.10:8000)"
+            value={serverUrl}
+            onChange={(e) => setServerUrl(e.target.value)}
+            required
+          />
+          <button type="button" onClick={fetchClaimInfo} disabled={isFetching}>
+            {isFetching ? '...' : 'Fetch'}
+          </button>
+        </div>
 
         <input
           type="text"
-          placeholder="Claim Token (e.g., A1B2)"
+          placeholder="Claim Token (will be auto-filled)"
           value={token}
           onChange={(e) => setToken(e.target.value.toUpperCase())}
-          maxLength="4" // Typically the token is short (e.g., 4 chars)
           required
         />
         <input
