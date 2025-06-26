@@ -20,13 +20,23 @@ const SettingsSharing = () => {
 
     try {
       const response = await mediaServerApi.post('/sharing/invite', {
-        server_unique_id: activeServer.server_unique_id,
-        invitee_identifier: invitee
+        invite_request: {
+          server_unique_id: activeServer.server_unique_id,
+          invitee_identifier: invitee
+        }
       });
       setMessage(response.data.message || 'Invitation sent successfully!');
       setInvitee('');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to send invitation.');
+      let errorMessage = 'Failed to send invitation.';
+      if (err.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          errorMessage = err.response.data.detail.map(d => d.msg).join(', ');
+        } else {
+          errorMessage = err.response.data.detail;
+        }
+      }
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
